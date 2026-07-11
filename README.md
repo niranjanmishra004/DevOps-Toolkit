@@ -38,8 +38,7 @@
 
 <h2>📸 Sample Output</h2>
 <p>
-  <img src="<img width="606" height="813" alt="Screenshot from 2026-07-11 19-36-32" src="https://github.com/user-attachments/assets/ef86c60b-331d-4d74-9a6b-aea2bd717099" />
-" alt="Sample terminal output of DevOps-Toolkit installer">
+  <img src=" img width="606" height="813" alt="Screenshot from 2026-07-11 19-36-32" src="https://github.com/user-attachments/assets/0f3aac5a-4947-49a8-84f5-c9ddd0bca98b">
 </p>
 <hr>
 
