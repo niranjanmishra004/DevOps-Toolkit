@@ -38,7 +38,7 @@
 
 <h2>📸 Sample Output</h2>
 <p>
-   <img src= img width="606" height="813" alt="image" src="https://github.com/user-attachments/assets/ccd7ec84-be42-48dc-92a4-6ca7fc3fee52"/>
+  <img src="https://github.com/user-attachments/assets/ccd7ec84-be42-48dc-92a4-6ca7fc3fee52" width="606" height="813" alt="Sample terminal output of DevOps-Toolkit installer">
 </p>
 <hr>
 
@@ -61,7 +61,7 @@
 <h2>🚀 Installation & Usage</h2>
 
 <h3>1. Clone the repository</h3>
-<pre><code>https://github.com/niranjanmishra004/DevOps-Toolkit.git</code></pre>
+<pre><code>git clone https://github.com/niranjanmishra004/DevOps-Toolkit.git</code></pre>
 
 <h3>2. Navigate into the directory</h3>
 <pre><code>cd DevOps-Toolkit</code></pre>
