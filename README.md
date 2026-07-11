@@ -1,13 +1,16 @@
 <h1>⚙️ DevOps-Toolkit</h1>
+
 <p>
   A <strong>one-shot DevOps environment bootstrapper</strong> built in Bash that
   installs and configures the entire toolchain a DevOps/Cloud engineer needs —
   <strong>Docker, Kubernetes tooling, IaC, and cloud CLIs</strong> — in a single command.
 </p>
+
 <p>
   Idempotent, colorized, and animated — re-run it as many times as you like,
   it only installs what's missing.
 </p>
+
 <hr>
 
 <h2>✨ Features</h2>
@@ -35,7 +38,8 @@
 
 <h2>📸 Sample Output</h2>
 <p>
-  <img src="assets/sample-output.png" alt="Sample terminal output of DevOps-Toolkit installer">
+  <img src="<img width="606" height="813" alt="Screenshot from 2026-07-11 19-36-32" src="https://github.com/user-attachments/assets/ef86c60b-331d-4d74-9a6b-aea2bd717099" />
+" alt="Sample terminal output of DevOps-Toolkit installer">
 </p>
 <hr>
 
@@ -56,14 +60,18 @@
 <hr>
 
 <h2>🚀 Installation & Usage</h2>
+
 <h3>1. Clone the repository</h3>
-<pre><code>git clone https://github.com/&lt;your-username&gt;/DevOps-Toolkit.git</code></pre>
+<pre><code>https://github.com/niranjanmishra004/DevOps-Toolkit.git</code></pre>
+
 <h3>2. Navigate into the directory</h3>
 <pre><code>cd DevOps-Toolkit</code></pre>
+
 <h3>3. Make it executable</h3>
-<pre><code>chmod +x devops-setup.sh</code></pre>
+<pre><code>chmod +x toolkit.sh</code></pre>
 <h3>4. Run the script</h3>
-<pre><code>./devops-setup.sh</code></pre>
+<pre><code>./toolkit.sh</code></pre>
+
 <p><strong>⚠️ Note:</strong> Some commands require <code>sudo</code> privileges. If Docker was just installed, log out/in (or run <code>newgrp docker</code>) to use it without <code>sudo</code>.</p>
 <hr>
 
