@@ -119,13 +119,13 @@ cd DevOps-Toolkit
 ### Step 2: Make the script executable
 
 ```bash
-chmod +x devops-toolkit-installer-universal.sh
+chmod +x toolkit.sh
 ```
 
 ### Step 3: Run the script
 
 ```bash
-./devops-toolkit-installer-universal.sh
+./toolkit.sh
 ```
 
 ### Important Notes
@@ -169,7 +169,7 @@ The script automatically detects your distribution and uses the appropriate pack
 
 ```
 DevOps-Toolkit/
-├── devops-toolkit-installer-universal.sh
+├── toolkit.sh
 └── README.md
 ```
 
@@ -280,7 +280,7 @@ For questions, bug reports, or feature requests, please open an issue on GitHub.
 
 Ensure the script is executable:
 ```bash
-chmod +x devops-toolkit-installer-universal.sh
+chmod +x toolkit.sh
 ```
 
 ### Docker commands still require sudo after installation
