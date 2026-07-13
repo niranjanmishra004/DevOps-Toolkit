@@ -1,8 +1,9 @@
 #!/bin/bash
 # ============================================================================
-#  DevOps Engineer Toolkit Installer
+#  Universal DevOps Engineer Toolkit Installer
+#  Supports: Debian, Ubuntu, RHEL, CentOS, Fedora, Arch, openSUSE, Alpine
 #  Installs: Docker, Kind, kubectl, Helm, Terraform, k9s, kubectx/kubens,
-#            AWS CLI v2, jq, yq, git, tmux, htop
+#            AWS CLI v2, jq, yq, git, tmux, htop, ArgoCD
 #  Features: colored output, spinner animations, progress tracking,
 #            idempotent (safe to re-run), version summary at the end
 # ============================================================================
@@ -29,10 +30,44 @@ ROCKET="🚀"
 GEAR="⚙️"
 PARTY="🎉"
 
-TOTAL_STEPS=11
+TOTAL_STEPS=12
 CURRENT_STEP=0
 
 # ----------------------------------------------------------------------------
+# Distribution detection
+# ----------------------------------------------------------------------------
+detect_distro() {
+  if [ -f /etc/os-release ]; then
+    . /etc/os-release
+    DISTRO="$ID"
+    DISTRO_VERSION="$VERSION_ID"
+    DISTRO_NAME="$NAME"
+  elif [ -f /etc/lsb-release ]; then
+    . /etc/lsb-release
+    DISTRO=$(echo "$DISTRIB_ID" | tr '[:upper:]' '[:lower:]')
+    DISTRO_VERSION="$DISTRIB_RELEASE"
+    DISTRO_NAME="$DISTRIB_DESCRIPTION"
+  else
+    echo -e "${RED}${CROSS} Unable to detect Linux distribution${NC}"
+    exit 1
+  fi
+
+  # Normalize distro names
+  case "$DISTRO" in
+    ubuntu|debian) PKG_MGR="apt" ;;
+    fedora) PKG_MGR="dnf" ;;
+    rhel|centos|rocky|almalinux) PKG_MGR="dnf" ;;
+    arch|manjaro) PKG_MGR="pacman" ;;
+    opensuse*|sles) PKG_MGR="zypper" ;;
+    alpine) PKG_MGR="apk" ;;
+    *) 
+      echo -e "${RED}${CROSS} Unsupported distribution: $DISTRO${NC}"
+      echo -e "${YELLOW}Supported: Debian, Ubuntu, Fedora, RHEL, CentOS, Arch, openSUSE, Alpine${NC}"
+      exit 1 
+      ;;
+  esac
+}
+
 # Spinner animation — runs a command in the background and shows a spinner
 # Usage: run_with_spinner "Message to show" "command to run"
 # ----------------------------------------------------------------------------
@@ -70,7 +105,6 @@ run_with_spinner() {
   rm -f "$logfile"
 }
 
-# ----------------------------------------------------------------------------
 # Progress bar header for each step
 # ----------------------------------------------------------------------------
 step_header() {
@@ -110,36 +144,151 @@ detect_arch() {
   esac
 }
 
+# Package manager abstraction layer
+# Usage: pkg_install "package1" "package2"
+# ----------------------------------------------------------------------------
+pkg_install() {
+  case "$PKG_MGR" in
+    apt)
+      sudo apt-get update -y >/dev/null 2>&1 || true
+      sudo apt-get install -y "$@"
+      ;;
+    dnf)
+      sudo dnf install -y "$@"
+      ;;
+    pacman)
+      sudo pacman -Sy --noconfirm "$@"
+      ;;
+    zypper)
+      sudo zypper install -y "$@"
+      ;;
+    apk)
+      sudo apk add "$@"
+      ;;
+    *)
+      echo -e "${RED}${CROSS} Unknown package manager: $PKG_MGR${NC}"
+      exit 1
+      ;;
+  esac
+}
+
+# Check if package/command is installed
+# Usage: is_installed "command_name"
+# ----------------------------------------------------------------------------
+is_installed() {
+  command -v "$1" &>/dev/null
+}
+
 # ============================================================================
 # MAIN
 # ============================================================================
 banner
+detect_distro
 detect_arch
-echo -e "${GEAR} Detected architecture: ${BOLD}${ARCH} (${ARCH_ALIAS})${NC}"
+
+echo -e "${GEAR} Detected Linux: ${BOLD}${DISTRO_NAME} (${DISTRO})${NC}"
+echo -e "${GEAR} Package Manager: ${BOLD}${PKG_MGR}${NC}"
+echo -e "${GEAR} Architecture: ${BOLD}${ARCH} (${ARCH_ALIAS})${NC}"
+
+# Check for sudo/root
+if [ "$EUID" -ne 0 ] && ! sudo -n true 2>/dev/null; then
+  echo -e "${YELLOW}⚠  This script requires sudo. Testing sudo access...${NC}"
+  sudo -v
+fi
 
 # ----------------------------------------------------------------------------
 # 1. System update
 # ----------------------------------------------------------------------------
-step_header "Updating package index"
-run_with_spinner "Refreshing apt package lists" "sudo apt-get update -y"
+step_header "Updating package manager"
+case "$PKG_MGR" in
+  apt) run_with_spinner "Refreshing apt package lists" "sudo apt-get update -y" ;;
+  dnf) run_with_spinner "Refreshing dnf package lists" "sudo dnf check-update -y || true" ;;
+  pacman) run_with_spinner "Refreshing pacman package lists" "sudo pacman -Sy" ;;
+  zypper) run_with_spinner "Refreshing zypper package lists" "sudo zypper refresh" ;;
+  apk) run_with_spinner "Refreshing apk package lists" "sudo apk update" ;;
+esac
 
 # ----------------------------------------------------------------------------
 # 2. Base utilities
 # ----------------------------------------------------------------------------
-step_header "Installing base utilities (curl, git, jq, tmux, htop, unzip)"
-if ! dpkg -s curl git jq tmux htop unzip ca-certificates gnupg lsb-release &>/dev/null; then
-  run_with_spinner "Installing base packages" \
-    "sudo apt-get install -y curl git jq tmux htop unzip ca-certificates gnupg lsb-release"
+step_header "Installing base utilities"
+if ! is_installed curl || ! is_installed git || ! is_installed jq; then
+  case "$PKG_MGR" in
+    apt)
+      run_with_spinner "Installing base packages (apt)" \
+        "sudo apt-get install -y curl git jq tmux htop unzip ca-certificates gnupg lsb-release"
+      ;;
+    dnf)
+      run_with_spinner "Installing base packages (dnf)" \
+        "sudo dnf install -y curl git jq tmux htop unzip ca-certificates gnupg"
+      ;;
+    pacman)
+      run_with_spinner "Installing base packages (pacman)" \
+        "sudo pacman -Sy --noconfirm curl git jq tmux htop unzip ca-certificates gnupg"
+      ;;
+    zypper)
+      run_with_spinner "Installing base packages (zypper)" \
+        "sudo zypper install -y curl git jq tmux htop unzip ca-certificates gnupg"
+      ;;
+    apk)
+      run_with_spinner "Installing base packages (apk)" \
+        "sudo apk add curl git jq tmux htop unzip ca-certificates gnupg"
+      ;;
+  esac
 else
   echo -e "${GREEN}${CHECK}${NC} Base utilities already installed."
+fi
+
+# Install wget if not present (needed for some tools)
+if ! is_installed wget; then
+  case "$PKG_MGR" in
+    apt) run_with_spinner "Installing wget" "sudo apt-get install -y wget" ;;
+    dnf) run_with_spinner "Installing wget" "sudo dnf install -y wget" ;;
+    pacman) run_with_spinner "Installing wget" "sudo pacman -Sy --noconfirm wget" ;;
+    zypper) run_with_spinner "Installing wget" "sudo zypper install -y wget" ;;
+    apk) run_with_spinner "Installing wget" "sudo apk add wget" ;;
+  esac
+fi
+
+# Install sudo if not present (unlikely but just in case)
+if ! is_installed sudo; then
+  case "$PKG_MGR" in
+    apt) pkg_install sudo ;;
+    dnf) pkg_install sudo ;;
+    pacman) pkg_install sudo ;;
+    zypper) pkg_install sudo ;;
+    apk) pkg_install sudo ;;
+  esac
 fi
 
 # ----------------------------------------------------------------------------
 # 3. Docker
 # ----------------------------------------------------------------------------
 step_header "Installing Docker"
-if ! command -v docker &>/dev/null; then
-  run_with_spinner "Installing Docker Engine" "sudo apt-get install -y docker.io"
+if ! is_installed docker; then
+  case "$DISTRO" in
+    ubuntu|debian)
+      run_with_spinner "Installing Docker Engine (Debian)" \
+        "sudo apt-get install -y docker.io"
+      ;;
+    fedora|rhel|centos|rocky|almalinux)
+      run_with_spinner "Installing Docker Engine (RHEL-based)" \
+        "sudo dnf install -y docker"
+      ;;
+    arch|manjaro)
+      run_with_spinner "Installing Docker Engine (Arch)" \
+        "sudo pacman -Sy --noconfirm docker"
+      ;;
+    opensuse*|sles)
+      run_with_spinner "Installing Docker Engine (openSUSE)" \
+        "sudo zypper install -y docker"
+      ;;
+    alpine)
+      run_with_spinner "Installing Docker Engine (Alpine)" \
+        "sudo apk add docker"
+      ;;
+  esac
+  
   run_with_spinner "Adding $USER to docker group" "sudo usermod -aG docker \"$USER\""
   echo -e "${YELLOW}⚠  Log out/in (or run 'newgrp docker') for group changes to apply.${NC}"
 else
@@ -150,7 +299,7 @@ fi
 # 4. Kind
 # ----------------------------------------------------------------------------
 step_header "Installing Kind (Kubernetes in Docker)"
-if ! command -v kind &>/dev/null; then
+if ! is_installed kind; then
   KIND_VERSION="v0.29.0"
   run_with_spinner "Downloading Kind ${KIND_VERSION}" \
     "curl -Lo ./kind https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-${ARCH_ALIAS} && chmod +x ./kind && sudo mv ./kind /usr/local/bin/kind"
@@ -162,7 +311,7 @@ fi
 # 5. kubectl
 # ----------------------------------------------------------------------------
 step_header "Installing kubectl"
-if ! command -v kubectl &>/dev/null; then
+if ! is_installed kubectl; then
   run_with_spinner "Resolving latest stable kubectl version" \
     "curl -Ls https://dl.k8s.io/release/stable.txt -o /tmp/kubectl_version.txt"
   KVERSION=$(cat /tmp/kubectl_version.txt)
@@ -176,7 +325,7 @@ fi
 # 6. Helm
 # ----------------------------------------------------------------------------
 step_header "Installing Helm"
-if ! command -v helm &>/dev/null; then
+if ! is_installed helm; then
   run_with_spinner "Installing Helm via official script" \
     "curl -fsSL -o /tmp/get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 && chmod +700 /tmp/get_helm.sh && /tmp/get_helm.sh"
 else
@@ -187,12 +336,34 @@ fi
 # 7. Terraform
 # ----------------------------------------------------------------------------
 step_header "Installing Terraform"
-if ! command -v terraform &>/dev/null; then
-  run_with_spinner "Adding HashiCorp GPG key & repo" \
-    "wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg && \
-     echo \"deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com \$(lsb_release -cs) main\" | sudo tee /etc/apt/sources.list.d/hashicorp.list"
-  run_with_spinner "Installing Terraform package" \
-    "sudo apt-get update -y && sudo apt-get install -y terraform"
+if ! is_installed terraform; then
+  case "$DISTRO" in
+    ubuntu|debian)
+      run_with_spinner "Adding HashiCorp GPG key & repo (Debian)" \
+        "wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg && \
+         echo \"deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com \$(lsb_release -cs) main\" | sudo tee /etc/apt/sources.list.d/hashicorp.list"
+      run_with_spinner "Installing Terraform package" \
+        "sudo apt-get update -y && sudo apt-get install -y terraform"
+      ;;
+    fedora|rhel|centos|rocky|almalinux)
+      run_with_spinner "Adding HashiCorp repo & installing Terraform (RHEL)" \
+        "sudo dnf install -y dnf-plugins-core && \
+         sudo dnf config-manager --add-repo https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo && \
+         sudo dnf install -y terraform"
+      ;;
+    arch|manjaro)
+      run_with_spinner "Installing Terraform (Arch)" \
+        "sudo pacman -Sy --noconfirm terraform"
+      ;;
+    opensuse*|sles)
+      run_with_spinner "Installing Terraform (openSUSE)" \
+        "sudo zypper install -y terraform"
+      ;;
+    alpine)
+      run_with_spinner "Installing Terraform (Alpine)" \
+        "sudo apk add terraform"
+      ;;
+  esac
 else
   echo -e "${GREEN}${CHECK}${NC} Terraform already installed."
 fi
@@ -201,7 +372,7 @@ fi
 # 8. AWS CLI v2
 # ----------------------------------------------------------------------------
 step_header "Installing AWS CLI v2"
-if ! command -v aws &>/dev/null; then
+if ! is_installed aws; then
   AWS_ARCH="x86_64"
   [ "$ARCH_ALIAS" = "arm64" ] && AWS_ARCH="aarch64"
   run_with_spinner "Downloading & installing AWS CLI v2" \
@@ -215,7 +386,7 @@ fi
 # 9. k9s (terminal UI for Kubernetes)
 # ----------------------------------------------------------------------------
 step_header "Installing k9s"
-if ! command -v k9s &>/dev/null; then
+if ! is_installed k9s; then
   run_with_spinner "Downloading & installing k9s" \
     "curl -Ls \"https://github.com/derailed/k9s/releases/latest/download/k9s_Linux_${ARCH_ALIAS}.tar.gz\" -o /tmp/k9s.tar.gz && \
      tar -xzf /tmp/k9s.tar.gz -C /tmp k9s && sudo mv /tmp/k9s /usr/local/bin/k9s && sudo chmod +x /usr/local/bin/k9s"
@@ -227,7 +398,7 @@ fi
 # 10. kubectx & kubens
 # ----------------------------------------------------------------------------
 step_header "Installing kubectx & kubens"
-if ! command -v kubectx &>/dev/null; then
+if ! is_installed kubectx; then
   run_with_spinner "Installing kubectx & kubens" \
     "sudo git clone --depth 1 https://github.com/ahmetb/kubectx /opt/kubectx 2>/dev/null || true; \
      sudo ln -sf /opt/kubectx/kubectx /usr/local/bin/kubectx; \
@@ -240,11 +411,23 @@ fi
 # 11. yq (YAML processor)
 # ----------------------------------------------------------------------------
 step_header "Installing yq"
-if ! command -v yq &>/dev/null; then
+if ! is_installed yq; then
   run_with_spinner "Downloading yq" \
     "sudo curl -Lo /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${ARCH_ALIAS} && sudo chmod +x /usr/local/bin/yq"
 else
   echo -e "${GREEN}${CHECK}${NC} yq already installed."
+fi
+
+# ----------------------------------------------------------------------------
+# 12. ArgoCD CLI
+# ----------------------------------------------------------------------------
+step_header "Installing ArgoCD CLI"
+if ! is_installed argocd; then
+  run_with_spinner "Downloading ArgoCD CLI" \
+    "curl -sSL -o /tmp/argocd-linux-${ARCH_ALIAS} https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-${ARCH_ALIAS} && \
+     chmod +x /tmp/argocd-linux-${ARCH_ALIAS} && sudo mv /tmp/argocd-linux-${ARCH_ALIAS} /usr/local/bin/argocd"
+else
+  echo -e "${GREEN}${CHECK}${NC} ArgoCD CLI already installed."
 fi
 
 # ============================================================================
@@ -259,10 +442,10 @@ print_version() {
   local name="$1"
   local cmd="$2"
   printf "%-12s" "$name"
-  if command -v "$name" &>/dev/null; then
+  if is_installed "$name"; then
     echo -e "${GREEN}${CHECK}${NC} $(eval "$cmd" 2>/dev/null | head -n1)"
   else
-    echo -e "${RED}${CROSS} not found${NC}"
+    echo -e "${RED}${CROSS}${NC} not found${NC}"
   fi
 }
 
@@ -277,6 +460,7 @@ print_version "kubectx"   "echo installed"
 print_version "kubens"    "echo installed"
 print_version "yq"        "yq --version"
 print_version "jq"        "jq --version"
+print_version "argocd"    "argocd version --client 2>/dev/null | head -n1"
 
 echo -e "${CYAN}------------------------------------------------------------------${NC}"
 echo -e "${GREEN}${BOLD}${PARTY} All done! Your DevOps toolkit is ready to roll.${NC}"
